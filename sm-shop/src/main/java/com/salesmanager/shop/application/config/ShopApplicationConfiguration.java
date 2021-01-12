@@ -46,6 +46,7 @@ import org.springframework.web.servlet.view.tiles3.TilesViewResolver;
 
 @Configuration
 @ComponentScan({"com.salesmanager.shop", "com.salesmanager.core.business"})
+@ComponentScan({"com.salesmanager.shop.*","com.salesmanager.core.business"})
 @ServletComponentScan
 @Import({CoreApplicationConfiguration.class}) // import sm-core configurations
 @ImportResource({"classpath:/spring/shopizer-shop-context.xml"})
