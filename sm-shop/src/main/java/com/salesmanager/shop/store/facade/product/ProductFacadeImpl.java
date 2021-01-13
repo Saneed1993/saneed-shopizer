@@ -3,6 +3,7 @@ package com.salesmanager.shop.store.facade.product;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+Import java.math.BigDecimal;
 import javax.inject.Inject;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang.Validate;
@@ -14,6 +15,7 @@ import com.salesmanager.core.business.exception.ServiceException;
 import com.salesmanager.core.business.services.catalog.category.CategoryService;
 import com.salesmanager.core.business.services.catalog.product.PricingService;
 import com.salesmanager.core.business.services.catalog.product.ProductService;
+import com.salesmanager.core.model.catalog.product.price.FinalPrice;
 import com.salesmanager.core.business.services.catalog.product.manufacturer.ManufacturerService;
 import com.salesmanager.core.business.services.catalog.product.relationship.ProductRelationshipService;
 import com.salesmanager.core.business.services.catalog.product.review.ProductReviewService;
@@ -115,6 +117,67 @@ public class ProductFacadeImpl implements ProductFacade {
       throw new ServiceRuntimeException(e);
     }
 
+
+  }
+
+@Override
+  public ReadableProductList getCalculatedProductListsByCategoryAndLangCriteria(MerchantStore store, Language language, ProductCriteria criterias) throws Exception {
+
+    Validate.notNull(criterias, "ProductCriteria must be set for this product");
+
+    /** This is for category **/
+    if (CollectionUtils.isNotEmpty(criterias.getCategoryIds())) {
+
+      if (criterias.getCategoryIds().size() == 1) {
+
+        com.salesmanager.core.model.catalog.category.Category category =
+                categoryService.getById(criterias.getCategoryIds().get(0));
+
+        if (category != null) {
+          String lineage = new StringBuilder().append(category.getLineage()).toString();
+
+          List<com.salesmanager.core.model.catalog.category.Category> categories =
+                  categoryService.getListByLineage(store, lineage);
+
+          List<Long> ids = new ArrayList<Long>();
+          if (categories != null && categories.size() > 0) {
+            for (com.salesmanager.core.model.catalog.category.Category c : categories) {
+              ids.add(c.getId());
+            }
+          }
+          ids.add(category.getId());criterias.setCategoryIds(ids);
+        }
+      }
+    }
+
+    com.salesmanager.core.model.catalog.product.ProductList products =
+            productService.listByStore(store, language, criterias);
+
+
+    ReadableProductPopulator populator = new ReadableProductPopulator();
+    populator.setPricingService(pricingService);
+    populator.setimageUtils(imageUtils);
+
+    ReadableProductList productList = new ReadableProductList();
+    for (Product product : products.getProducts()) {
+      FinalPrice price = pricingService.calculateProductPrice(product);
+
+       // create new proxy product
+      BigDecimal discountedPrice = price.getOriginalPrice().multiply(new BigDecimal("0.2"));
+
+      BigDecimal finalPrice=price.getOriginalPrice().subtract(discountedPrice);
+
+      ReadableProduct readProduct =
+              populator.populate(product, new ReadableProduct(), store, language);
+
+      readProduct.setFinalPrice(pricingService.getDisplayAmount(finalPrice, store));
+      productList.getProducts().add(readProduct);
+
+
+    }productList.setTotalCount(products.getTotalCount());
+
+
+    return productList;
 
   }
 
